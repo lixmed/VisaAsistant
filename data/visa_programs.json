@@ -1,0 +1,161 @@
+{
+  "meta": {
+    "title": "Veeza AI - Curated Visa Knowledge Base",
+    "description": "Curated baseline about European visa programs for Egyptian applicants. Fees and details change frequently - the agent always verifies against official sources via live web search.",
+    "currency": "EUR",
+    "applicant_market": "Egypt (Cairo applications via VFS Global, TLScontact, or direct embassies)",
+    "updated": "2026-08",
+    "sources": [
+      "https://home-affairs.ec.europa.eu/policies/schengen-borders-and-visa/visa-policy_en",
+      "https://www.consilium.europa.eu/en/policies/schengen-area/",
+      "https://visas.vfsglobal.com/",
+      "https://www.tlscontact.com/",
+      "Country-specific embassy sites"
+    ]
+  },
+  "countries": {
+    "schengen_countries": [
+      "Austria", "Belgium", "Croatia", "Czechia", "Denmark", "Estonia", "Finland",
+      "France", "Germany", "Greece", "Hungary", "Iceland", "Italy", "Latvia",
+      "Liechtenstein", "Lithuania", "Luxembourg", "Malta", "Netherlands", "Norway",
+      "Poland", "Portugal", "Slovakia", "Slovenia", "Spain", "Sweden", "Switzerland"
+    ],
+    "eu_non_schengen_notes": "Ireland, Cyprus, Romania, Bulgaria are EU but not full Schengen - separate visa rules apply (Cyprus/Bulgaria/Romania have their own national visas, sometimes accepted Schengen holders)."
+  },
+  "visa_types": [
+    {
+      "id": "schengen_short_stay_tourist",
+      "name": "Schengen Short-Stay (Type C) - Tourism",
+      "purpose": "Sightseeing, holidays, visiting tourist attractions in the Schengen Area (up to 90 days in any 180-day period).",
+      "suitability": "Tourists, couples, families travelling for leisure.",
+      "where_to_apply": "VFS Global / TLScontact centres in Cairo, or the embassy of the main destination country (if a single country).",
+      "main_requirements": {
+        "passport": "Valid 3+ months beyond planned departure from Schengen, issued within last 10 years, at least 2 blank pages",
+        "application_form": "Completed and signed Schengen visa application form",
+        "photos": "2 recent passport photos meeting ICAO / Schengen photo rules",
+        "travel_insurance": "Medical travel insurance, min EUR 30,000 coverage, valid for the whole Schengen area and stay",
+        "flight_itinerary": "Round-trip flight reservations (not necessarily paid)",
+        "accommodation": "Hotel bookings for the full stay or an official invitation/host letter",
+        "financial_proof": "Proof of sufficient funds - typically EUR 50-100 per day of stay; e.g. bank statements, recent 3-6 months",
+        "employment_proof": "Employer letter, contract, payslips, or proof of self-employment / business registration",
+        "ties_to_egypt": "Evidence you will return: family ties, property, job, study enrolment",
+        "cover_letter": "Motivation letter explaining itinerary and purpose"
+      },
+      "standard_fee": "EUR 90 per adult; EUR 45 for children 6-11; free under 6. Service fees (VFS/TLS) extra.",
+      "processing_time": "15 calendar days standard, extendable to 45 in individual cases.",
+      "validity": "Usually 90 days in any 180-day period; validity often limited to the travel dates submitted.",
+      "official_links": [
+        "https://home-affairs.ec.europa.eu/policies/schengen-borders-and-visa/visa-policy_en",
+        "https://visas.vfsglobal.com/"
+      ],
+      "notes": "For Egyptians: biometrics (fingerprints) captured at first application and valid 59 months. Apply at the embassy of the country where you will spend the most days."
+    },
+    {
+      "id": "schengen_short_stay_business",
+      "name": "Schengen Short-Stay (Type C) - Business",
+      "purpose": "Meetings, conferences, negotiations, trade fairs, short business trips in the Schengen Area.",
+      "where_to_apply": "VFS Global / TLScontact centres in Cairo, or the embassy of the main destination country.",
+      "main_requirements": {
+        "passport": "Valid 3+ months beyond departure, issued within 10 years, 2+ blank pages",
+        "application_form": "Completed and signed application form",
+        "photos": "2 recent ICAO-compliant photos",
+        "insurance": "Travel medical insurance min EUR 30,000",
+        "business_letter": "Invitation letter from the European host company (official letterhead)",
+        "employer_letter": "Letter from your Egyptian employer confirming position, salary, purpose and dates",
+        "company_docs": "Your company registration / commercial register extract if self-employed",
+        "financial_proof": "3-6 months bank statements",
+        "flight_and_accommodation": "Round-trip flights and hotel bookings or host accommodation"
+      },
+      "standard_fee": "EUR 90 per adult.",
+      "processing_time": "15 calendar days standard.",
+      "validity": "Up to 90 days per 180-day period.",
+      "official_links": ["https://visas.vfsglobal.com/"],
+      "notes": "Embassies often prioritise business applications. Bring original documents to the interview."
+    },
+    {
+      "id": "schengen_family_visit",
+      "name": "Schengen Short-Stay (Type C) - Family/Private Visit",
+      "purpose": "Visiting family members or friends legally resident in the Schengen Area.",
+      "where_to_apply": "Embassy / visa centre of the country of the host.",
+      "main_requirements": {
+        "passport": "Valid 3+ months, issued within 10 years, 2+ blank pages",
+        "application_form": "Completed and signed",
+        "photos": "2 recent photos",
+        "insurance": "Min EUR 30,000 medical travel insurance",
+        "invitation": "Official invitation/host form (varies by country) or host documents",
+        "host_proof": "Host's residence permit/passport, and proof of accommodation",
+        "relationship_proof": "Birth certificates, marriage certificates (translated + legalised as required)",
+        "financial_proof": "Sponsorship declaration and/or your bank statements",
+        "ties_to_egypt": "Evidence of return: job, property, family obligations"
+      },
+      "standard_fee": "EUR 90 per adult.",
+      "processing_time": "15 calendar days standard, sometimes longer with invitation verification.",
+      "official_links": ["https://www.tlscontact.com/"],
+      "notes": "Some countries require the host to obtain an official 'certificate of sponsorship' / 'Verpflichtungserklärung' (e.g. Germany). Check the specific host country rules."
+    },
+    {
+      "id": "schengen_airport_transit",
+      "name": "Schengen Airport Transit (Type A)",
+      "purpose": "Passing through the international transit zone of a Schengen airport en route to a non-Schengen country, without entering the Schengen area.",
+      "suitability": "Egyptian citizens may need an airport transit visa for certain Schengen states depending on nationality rules.",
+      "main_requirements": {
+        "passport": "Valid passport",
+        "application_form": "Completed and signed",
+        "photos": "2 photos",
+        "flight_itinerary": "Confirmed onward tickets",
+        "destination_visa": "Valid visa/residence for the final destination country (if applicable)"
+      },
+      "standard_fee": "EUR 90 per adult.",
+      "processing_time": "Usually faster than full short-stay; still apply in advance.",
+      "notes": "Whether Egyptians need an ATV depends on the country. Airline transits and same-day connections may be exempt - always verify."
+    },
+    {
+      "id": "national_long_stay",
+      "name": "National Long-Stay Visa (Type D) / Residence",
+      "purpose": "Stays over 90 days: work, study, family reunification, retirement, or long-term residence in a specific EU country.",
+      "where_to_apply": "Embassy or consulate of the specific country in Cairo. Not via VFS for many types.",
+      "main_requirements": {
+        "passport": "Valid passport with sufficient validity (often 1+ year)",
+        "application_form": "Country-specific national visa form",
+        "photos": "2+ recent photos",
+        "basis_document": "Admission letter (study), employment contract / work permit approval, or family reunion proof",
+        "financial_proof": "Proof of sufficient funds for the stay (country-specific thresholds)",
+        "health_insurance": "Private health insurance covering the stay",
+        "police_certificate": "Good-conduct certificate from Egypt, often needed",
+        "medical_checks": "Some countries require medical examinations in Cairo",
+        "accommodation": "Proof of housing in the destination country"
+      },
+      "standard_fee": "Varies by country (often EUR 75-180 or local equivalent).",
+      "processing_time": "1-6 months depending on country and category; work permits must usually be approved first.",
+      "validity": "Long-stay visa then residence permit after arrival; 1 year typical, renewable.",
+      "notes": "Each EU country runs its own national visa system. Key programs for Egyptians: Germany (Chancenkarte/opportunity card, skilled worker, university), France (student, passeport talent), Italy, Netherlands (GVVA), Spain (student, work), Portugal (D visas), Malta. Research the specific program."
+    }
+  ],
+  "egypt_application_routes": [
+    {
+      "id": "vfs_global_cairo",
+      "name": "VFS Global (Cairo)",
+      "countries_covered": ["France", "Germany", "Italy", "Spain", "Switzerland", "Netherlands", "and others"],
+      "url": "https://visas.vfsglobal.com/",
+      "notes": "Book appointment online, submit biometrics and documents, track application online."
+    },
+    {
+      "id": "tlscontact_cairo",
+      "name": "TLScontact (Cairo)",
+      "countries_covered": ["Belgium", "France (some periods)", "and others"],
+      "url": "https://www.tlscontact.com/",
+      "notes": "Similar model to VFS Global: appointments, biometrics, courier return."
+    }
+  ],
+  "key_facts_for_egyptians": {
+    "biometrics": "Fingerprints captured at first Schengen application; valid 59 months and reused for subsequent applications.",
+    "appointments": "Visa centres in Cairo often have limited slots; book 2-3 months before travel during peak season (summer).",
+    "appeal_rights": "If refused, you receive a refusal letter; you can appeal within the country-specific deadline (commonly 30 days).",
+    "funds_threshold": "Many Schengen states use EUR 50-100/day as a funds reference; some use country-specific minimums (e.g. Germany, France publish daily amounts).",
+    "airline_notification": "APIS/PNR: airlines verify visa validity before boarding; visa validity is often aligned to exact travel dates.",
+    "first_time_applicants": "First-time applicants face stricter scrutiny - strong ties to Egypt (job, property, family) are the key factor.",
+    "seasonal_surcharge": "From 2024, the EU allows higher fees during peaks; verify the current published fee.",
+    "return_ticket_rule": "Visa validity may match the ticket dates; do not book non-refundable flights before the visa is issued."
+  },
+  "disclaimer": "This knowledge base is a starting point for research only and is not legal advice. Fees, documents and rules change. Always verify the final requirements on the official embassy or visa centre website of the destination country before applying."
+}

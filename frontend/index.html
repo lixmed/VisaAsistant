@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Veeza AI — European visa assistant for Egyptians</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">V</div>
+        <div>
+          <div class="brand-name" data-i18n="brand">Veeza AI</div>
+          <div class="brand-sub" data-i18n="tagline">European visa assistant for Egyptians</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="langBtn" class="ghost-btn" title="Toggle language">العربية</button>
+        <button id="historyBtn" class="ghost-btn" data-i18n="historyBtn" title="Saved plans">History</button>
+        <button id="resetBtn" class="ghost-btn" data-i18n="newBtn" title="Start a new session">↺ New session</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="chat-pane">
+        <div id="messages" class="messages"></div>
+
+        <div id="chips" class="chips">
+          <span class="chip" data-example="I want to visit Italy for 10 days of tourism next month, just me.">✈️ Tourism · Italy</span>
+          <span class="chip" data-example="I'm going to Germany for a business conference for 4 days.">💼 Business · Germany</span>
+          <span class="chip" data-example="I want to visit my brother who lives in France, for 2 weeks.">👨‍👩‍👧 Visit family · France</span>
+          <span class="chip" data-example="I want to study a master's in the Netherlands for 2 years.">🎓 Study · Netherlands</span>
+        </div>
+
+        <form id="chatForm" class="input-bar">
+          <textarea id="input" rows="1" data-i18n-ph="inputPh" placeholder="Tell me about your trip…" autocomplete="off"></textarea>
+          <button id="sendBtn" type="submit" aria-label="Send">➤</button>
+        </form>
+      </section>
+
+      <aside id="planPane" class="plan-pane hidden">
+        <div class="plan-header">
+          <div>
+            <h3 data-i18n="planTitle">Your Visa Plan</h3>
+            <span id="planType" class="plan-type"></span>
+          </div>
+          <div class="plan-actions">
+            <button id="pdfBtn" class="ghost-btn" data-i18n="pdfBtn" title="Download / print as PDF">⬇ PDF</button>
+          </div>
+        </div>
+        <div id="planBody" class="plan-body"></div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="historyModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 data-i18n="historyTitle">Your saved plans</h3>
+        <button id="historyClose" class="ghost-btn">✕</button>
+      </div>
+      <div id="historyList" class="history-list"></div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
