@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: veeza
+      POSTGRES_PASSWORD: "1234"
+      POSTGRES_DB: veeza
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veeza"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "7860:7860"
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://api.groq.com/openai/v1}
+      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3.6-27b}
+      DATABASE_URL: postgresql://veeza:1234@db:5432/veeza
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+volumes:
+  pgdata:

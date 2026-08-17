@@ -6,3 +6,6 @@ requests==2.32.3
 beautifulsoup4==4.12.3
 ddgs==9.15.0
 python-dotenv==1.0.1
+psycopg2-binary==2.9.9
+pgvector==0.3.6
+sentence-transformers==3.6.0

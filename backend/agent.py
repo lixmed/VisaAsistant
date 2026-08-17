@@ -1,9 +1,9 @@
-"""Agent loop: interviews the user, searches the web and knowledge base,
+"""Agent loop: interviews the user, looks up visa data from pgvector,
 and produces a structured visa action plan.
 
 The conversation works like this:
   1. The user answers interview questions.
-  2. The agent may call tools (web search, page fetch, knowledge base search).
+  2. The agent calls ensure_country_data + lookup_visa to get visa info from pgvector.
   3. When it needs input from the user it calls `ask_user`, which pauses the turn.
   4. When it has enough information it calls `generate_plan`, which ends the turn
      with a structured JSON plan rendered by the frontend.
@@ -16,13 +16,14 @@ import time
 from openai import OpenAI
 
 from .config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL, MAX_AGENT_STEPS, MAX_TOOLS_PER_TURN
-from .tools import search_web, fetch_page, search_knowledge_base
+from .tools import search_knowledge_base
+from .rag import ensure_country_data, lookup_visa_info
 
 SYSTEM_PROMPT = """You are "Veeza", a friendly visa assistant that helps Egyptian citizens apply for European (Schengen and EU national) visas.
 
 YOUR JOB
 1. INTERVIEW: Collect ALL the information you need from the user in as FEW messages as possible (ideally one). Ask the user to answer a short numbered checklist covering everything, in a single reply. This keeps API calls small and fast.
-2. RESEARCH: Use your tools to look up the current requirements, fees and procedures for the user's specific case on official sources (embassy sites, VFS Global, TLScontact, EU Commission). Prefer official domains. Cross-check the curated knowledge base with live results. Keep research focused: at most 2-3 searches and 1-2 page reads in total.
+2. RESEARCH: When the user mentions a destination country, call ensure_country_data to scrape and store visa info, then call lookup_visa to read it. You can also search the curated knowledge base for baseline info. Keep research focused: at most 2 lookups total.
 3. PLAN: When you have enough information, call generate_plan with a complete, structured, personalised plan.
 
 INFORMATION YOU MUST COLLECT BEFORE GENERATING A PLAN (collect what is relevant - skip what does not apply). Ask for all of it up front in ONE numbered checklist:
@@ -39,21 +40,21 @@ INFORMATION YOU MUST COLLECT BEFORE GENERATING A PLAN (collect what is relevant 
 
 BEHAVIOUR RULES
 - Keep responses concise and clear. Answer in the language the user writes in (English or Arabic). Be encouraging but honest.
-- Do NOT make up fees or deadlines. If you are not sure, search the web for the current official figure and quote the source URL.
+- Do NOT make up fees or deadlines. If you are not sure, use lookup_visa to find the current official figure and quote the source URL.
 - Do NOT give false hope or guarantee visa approval. You may note that approval is always at the embassy's discretion.
 - If the user asks about something unrelated to visas, politely steer back.
 - TOKEN-EFFICIENT INTERVIEW: In your very first ask_user call, present the numbered checklist above and ask the user to reply to all of it in ONE message. After their batch answer, ask at most ONE short follow-up only if something essential is still missing. Never re-ask what they already told you.
 - QUESTION STYLE: short, simple wording. Avoid parentheses, comma-lists and heavy punctuation inside questions.
-- Once you have enough info (from the batch answer + at most one follow-up), tell the user you are preparing the plan, do minimal final web checks, then call generate_plan.
+- Once you have enough info (from the batch answer + at most one follow-up), tell the user you are preparing the plan, do minimal final lookups, then call generate_plan.
 
 HONEST ASSESSMENT
 - In generate_plan, always include an honest 'chances' rating (e.g. "Good", "Fair", "Challenging") for this specific applicant and a 'weak_points' list naming concrete weaknesses that could hurt the application (e.g. short bank history, low income vs funds needed, first Schengen application, no strong ties). Then give practical ways to fix them in 'tips'.
 - Never promise or imply approval. Always keep the disclaimer that the embassy decides.
 
-COST REFERENCES (verify live, these are baselines as of 2024+):
+COST REFERENCES (verify via lookup_visa, these are baselines as of 2024+):
 - Schengen short-stay fee: EUR 90/adult, EUR 45 child 6-11, free under 6. Visa-centre service fee extra (usually EUR 30-80).
 - Travel insurance: min EUR 30,000 coverage; typically ~EUR 20-60 for a short trip.
-- Funds references: many Schengen states use EUR 50-100/day per person; France/Germany/Italy publish daily minimums - search for the current one.
+- Funds references: many Schengen states use EUR 50-100/day per person; France/Germany/Italy publish daily minimums - look up the current one.
 - Fees change and some countries add peak-season surcharges; always cite the source you verified.
 """
 
@@ -61,31 +62,38 @@ TOOL_SCHEMAS = [
     {
         "type": "function",
         "function": {
-            "name": "search_web",
-            "description": "Search the web for current visa requirements, fees, processing times, or official program details. Use official sources (embassy, VFS Global, TLScontact, EU sites).",
+            "name": "ensure_country_data",
+            "description": "Scrape and store visa information for a country in pgvector. Call this FIRST when the user mentions a destination country. Returns status (scraped, chunks, source).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {
+                    "country": {
                         "type": "string",
-                        "description": "A precise search query, e.g. 'France Schengen visa fee 2026 Egyptian citizens'"
+                        "description": "The destination country name, e.g. 'Italy', 'France', 'Germany'"
                     }
                 },
-                "required": ["query"]
+                "required": ["country"]
             }
         }
     },
     {
         "type": "function",
         "function": {
-            "name": "fetch_page",
-            "description": "Fetch and read the text content of a specific page to extract detailed requirements or a fee table.",
+            "name": "lookup_visa",
+            "description": "Look up visa information for a country from the pgvector database. Returns relevant chunks about requirements, fees, processing times. Call after ensure_country_data.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "url": {"type": "string", "description": "The full URL of the page to read"}
+                    "country": {
+                        "type": "string",
+                        "description": "The destination country name, e.g. 'Italy'"
+                    },
+                    "topic": {
+                        "type": "string",
+                        "description": "What to look up: 'requirements', 'fees', 'documents', 'processing', 'appointment', or 'general'"
+                    }
                 },
-                "required": ["url"]
+                "required": ["country", "topic"]
             }
         }
     },
@@ -93,7 +101,7 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "search_knowledge_base",
-            "description": "Search the curated baseline knowledge base for visa types, document requirements, fees and Egypt-specific application routes. Use this for structure, then verify details live.",
+            "description": "Search the curated baseline knowledge base for visa types, document requirements, fees and Egypt-specific application routes. Use this for structure.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -205,8 +213,8 @@ TOOL_SCHEMAS = [
 ]
 
 TOOL_MAP = {
-    "search_web": search_web,
-    "fetch_page": fetch_page,
+    "ensure_country_data": lambda country: json.dumps(ensure_country_data(country)),
+    "lookup_visa": lambda country, topic: lookup_visa_info(country, topic),
     "search_knowledge_base": search_knowledge_base,
 }
 
@@ -232,6 +240,62 @@ def _looks_like_question(text: str) -> bool:
     if re.search(r"\n\s*\d+[.)]", text):  # numbered checklist
         return True
     return False
+
+
+
+def _parse_xml_tool_calls(text):
+    """Parse XML-style tool calls that some Qwen models emit."""
+    calls = []
+    open_tag = "<" + "tool_call>"
+    close_tag = "<" + "/tool_call>"
+    for tc_match in re.finditer(open_tag + r"(.*?)" + close_tag, text, re.DOTALL):
+        body = tc_match.group(1)
+        func_match = re.search(r"<function=(\w+)>(.*)</function>", body, re.DOTALL)
+        if not func_match:
+            continue
+        name = func_match.group(1)
+        params_text = func_match.group(2)
+        args = {}
+        for p_match in re.finditer(r"<parameter=(\w+)>(.*?)</parameter>", params_text, re.DOTALL):
+            p_name = p_match.group(1)
+            p_val = p_match.group(2).strip()
+            try:
+                args[p_name] = json.loads(p_val)
+            except (json.JSONDecodeError, ValueError):
+                args[p_name] = p_val
+        if name:
+            calls.append({"name": name, "arguments": args})
+    return calls
+
+
+class _FakeFunction:
+    def __init__(self, name, arguments_json):
+        self.name = name
+        self.arguments = arguments_json
+
+
+class _FakeToolCall:
+    def __init__(self, call_id, name, arguments_json):
+        self.id = call_id
+        self.function = _FakeFunction(name, arguments_json)
+
+
+class _FakeMessage:
+    def __init__(self, tool_calls):
+        self.tool_calls = tool_calls or None
+        self.content = None
+
+    def model_dump(self, exclude_none=False):
+        d = {"role": "assistant"}
+        if self.tool_calls:
+            d["tool_calls"] = [
+                {"id": tc.id, "type": "function",
+                 "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+                for tc in self.tool_calls
+            ]
+        if self.content:
+            d["content"] = self.content
+        return d
 
 
 class Agent:
@@ -269,8 +333,8 @@ class Agent:
 
         client = self._client()
         status_hint = {
-            "search_web": "Searching official sources…",
-            "fetch_page": "Reading a source page…",
+            "ensure_country_data": "Scraping visa data…",
+            "lookup_visa": "Looking up visa info…",
             "search_knowledge_base": "Checking our knowledge base…",
         }
 
@@ -293,10 +357,22 @@ class Agent:
                     status = getattr(e, "status_code", None) or getattr(
                         getattr(e, "response", None), "status_code", None
                     )
+                    # qwen XML tool-call fallback
+                    if status == 400:
+                        try:
+                            err_body = e.response.json() if hasattr(e, "response") and e.response is not None else {}
+                            failed_gen = err_body.get("error", {}).get("failed_generation", "")
+                            if failed_gen:
+                                xml_calls = _parse_xml_tool_calls(failed_gen)
+                                if xml_calls:
+                                    msg = _FakeMessage(
+                                        [_FakeToolCall("xml_%d" % i, tc["name"], json.dumps(tc["arguments"])) for i, tc in enumerate(xml_calls)]
+                                    )
+                                    last_err = None
+                                    break
+                        except Exception:
+                            pass
                     if status in (413, 429):
-                        # Free-tier rate limit: wait for the window to reset.
-                        # Single requests can also exceed the 8k TPM cap, so trim
-                        # history aggressively before the retry.
                         if status == 413 and len(self.messages) > 6:
                             self.messages = self.messages[:1] + self.messages[-6:]
                         time.sleep(8 * (attempt + 1))

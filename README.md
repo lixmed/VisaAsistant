@@ -1,119 +1,150 @@
 <div align="center">
 
-# 🛂 Veeza AI
+# Veeza AI
 
-**Your AI visa assistant for Europeans visas — built for Egyptians 🇪🇬 → 🇪🇺**
+**Your AI visa assistant for European visas — built for Egyptians**
 
-Interview → research → **a complete application plan** (documents, costs in EUR & EGP, timeline, chances, sources) — powered by free models.
+Interview -> research -> **a complete application plan** (documents, costs in EUR & EGP, timeline, chances, sources) — powered by free models + pgvector RAG.
 
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Groq](https://img.shields.io/badge/LLM-Groq%20GPT--OSS%20120B-f55036?logo=groq&logoColor=white)](https://console.groq.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![pgvector](https://img.shields.io/badge/pgvector-vector%20search-4169E1)](https://github.com/pgvector/pgvector)
+[![Groq](https://img.shields.io/badge/LLM-Groq%20Free%20Tier-f55036?logo=groq&logoColor=white)](https://console.groq.com)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
-[![Hugging Face](https://img.shields.io/badge/Hosted%20on-Hugging%20Face%20Spaces-FFD21E?logo=huggingface&logoColor=black)](https://huggingface.co/spaces)
-[![Made in Egypt 🇪🇬](https://img.shields.io/badge/Made%20in-Egypt-white?labelColor=%23C09300)](https://en.wikipedia.org/wiki/Egypt)
 
 </div>
 
 ---
 
-## ✨ What it does
+## What it does
 
 An end-to-end **AI agent** that guides an Egyptian applicant through a European visa application:
 
-1. **Interviews you** — one natural question at a time (purpose, destination, dates, income, ties to Egypt, passport…).
-2. **Researches live** — searches the web and reads **official sources** (embassies, VFS Global, TLScontact, EU Commission) for the current requirements, fees and procedures for *your* case.
-3. **Builds your plan** — a structured, personalised plan with a step-by-step process, document checklist, estimated costs (**EUR + live EGP conversion**), timeline, official sources, and an honest approval-likelihood assessment with your weak points.
+1. **Interviews you** — one batched checklist covering everything (purpose, destination, dates, income, ties to Egypt, passport...). One reply gets you a complete plan.
+2. **Researches via pgvector RAG** — scrapes official sources (VFS Global, embassies), stores in PostgreSQL + pgvector, and reads pre-chunked context. No live web search loops — fast and token-efficient.
+3. **Builds your plan** — a structured, personalised plan with a step-by-step process, document checklist, estimated costs (EUR + live EGP conversion), timeline, official sources, and an honest approval-likelihood assessment with weak points.
 
-It answers in **English or Arabic**, and the UI is **fully bilingual with RTL support**.
+Answers in **English or Arabic**. UI is **fully bilingual with RTL support**.
 
-### Difference vs. typical paid "we do it for you" services
+### vs. Paid concierge services
 
 | Typical concierge services | **Veeza AI** |
 |---|---|
 | Paid, per-application fees | **Free**, research-first assistant |
-| "We guarantee nothing" | Honest **likelihood rating + specific weak points** to fix |
-| Fixed package prices | **Live cost estimate in EUR and EGP** for your exact trip |
+| "We guarantee nothing" | Honest **likelihood rating + specific weak points** |
+| Fixed package prices | **Live cost estimate in EUR and EGP** |
 | No transparency on sources | Every plan cites **official sources** you can click |
-| Chatbot with no agentic loop | **Tool-calling agent** that searches, reads pages and plans |
+| Chatbot with no agentic loop | **Tool-calling agent** + pgvector RAG |
 
 ---
 
-## 🎥 Demo
+## Architecture
 
-> Screenshot coming soon — add `screenshots/demo.png` (chat view) and `screenshots/plan.png` (plan panel) and they'll render here.
+```
+User picks country
+        |
+        v
+  ensure_country_data(country)
+        |
+  +-----+------+
+  |             |
+  v             v
+Scrape VFS    DuckDuckGo
++ embassy     search
+  |             |
+  +------+------+
+         |
+         v
+  Chunk text (1500 chars, overlap)
+         |
+         v
+  Embed (all-MiniLM-L6-v2, 384-dim)
+         |
+         v
+  Store in PostgreSQL + pgvector
+         |
+         v
+  lookup_visa(country, topic)
+         |
+         v
+  Top 8 relevant chunks -> LLM context
+         |
+         v
+  Agent generates plan (no web search tools needed)
+```
 
-| Chat interview | Personalised plan |
+### Key components
+
+| Component | Description |
 |---|---|
-| ![](screenshots/demo.png) | ![](screenshots/plan.png) |
+| `vectorstore/` | PostgreSQL + pgvector connection, embeddings, similarity search |
+| `scraper/schengen.py` | Schengen-specific scraper (26 countries: VFS Global + embassy + DuckDuckGo) |
+| `scraper/dynamic.py` | Generic scraper for any country (Ireland, UK, etc.) |
+| `backend/rag.py` | Orchestrator: scrape -> embed -> store -> query |
+| `backend/agent.py` | Agent loop with `ensure_country_data` + `lookup_visa` tools |
+| `data/visa_programs.json` | Curated Egypt-specific baseline knowledge base |
+
+### Why pgvector instead of live web search?
+
+| Live web search (old) | pgvector RAG (current) |
+|---|---|
+| 3-5 tool calls per request | 1 lookup call |
+| ~12,000-20,000 tokens/turn | ~4,000-6,000 tokens/turn |
+| Hits 8K TPM free tier cap | Comfortably under |
+| ~30s per request (web fetch) | ~1s cache hit (subsequent) |
+| Non-deterministic results | Consistent, deterministic |
 
 ---
 
-## 🧠 How it works
-
-The core is a **tool-calling agent loop** (`backend/agent.py`):
-
-```
-┌────────────┐   user message    ┌──────────────────────────────┐
-│  Browser   │ ────────────────▶ │   FastAPI + SSE stream        │
-│ (chat UI)  │ ◀──────────────── │   /api/chat/stream            │
-└────────────┘  status/plan/msg  └──────────────┬───────────────┘
-                                                ▼
-                                   ┌────────────────────────────┐
-                                   │  Agent loop (LLM + tools)  │
-                                   │                            │
-                                   │  ┌────────┐  ┌──────────┐  │
-                                   │  │ search │  │  fetch   │  │
-                                   │  │  web   │  │  page    │  │
-                                   │  └────────┘  └──────────┘  │
-                                   │  ┌────────┐  ┌──────────┐  │
-                                   │  │knowledge│  │ ask_user │  │
-                                   │  │  base   │  │ (pause)  │  │
-                                   │  └────────┘  └──────────┘  │
-                                   │  ┌──────────────────────┐  │
-                                   │  │   generate_plan 🎯   │  │
-                                   │  └──────────────────────┘  │
-                                   └────────────────────────────┘
-```
-
-- **Curated knowledge base** (`data/visa_programs.json`) — Egypt-specific baseline (visa types, documents, fees, application routes) that the agent always cross-checks against **live web results**.
-- **Streaming (SSE)** — you see live status ("Searching official sources…") instead of a spinner.
-- **Resilience** — retries with varied temperature, per-turn research budget, and history compaction keep free-tier API quirks from breaking the demo.
-
----
-
-## 🧰 Tech stack
+## Tech stack
 
 | Layer | Tech |
 |---|---|
-| Backend | Python 3.12 · **FastAPI** · Uvicorn |
-| LLM | OpenAI-compatible SDK → **Groq free tier** (`qwen/qwen3.6-27b`), any OpenAI-compatible endpoint works |
-| Web search | **DuckDuckGo** (free, no key) or **Tavily** (optional) |
-| Web scraping | `requests` + `BeautifulSoup` |
+| Backend | Python 3.12, FastAPI, Uvicorn |
+| LLM | OpenAI-compatible SDK, Groq free tier (`qwen/qwen3.6-27b`) |
+| Vector DB | PostgreSQL 16 + pgvector |
+| Embeddings | `sentence-transformers/all-MiniLM-L6-v2` (384-dim, 80MB, CPU) |
+| Scraping | requests + BeautifulSoup + DuckDuckGo |
 | Exchange rate | Frankfurter / open.er-api (free, ECB data) |
-| Frontend | Vanilla HTML/CSS/JS (no build step), **English + Arabic (RTL)** |
+| Frontend | Vanilla HTML/CSS/JS, English + Arabic (RTL) |
 
 ---
 
-## 📁 Repository structure
+## Repository structure
 
 ```
 veezaAI/
 ├── app.py                 # Hugging Face Spaces / Docker entrypoint
-├── requirements.txt       # Root deps (Docker / HF Spaces)
+├── requirements.txt       # Python dependencies
 ├── Dockerfile             # Docker / HF Spaces image
+├── docker-compose.yml     # PostgreSQL + pgvector + app
 ├── run.py                 # Local dev launcher (port 8000)
 ├── backend/
-│   ├── app.py             # FastAPI app: SSE chat, rate, knowledge, static files
-│   ├── agent.py           # Tool-calling agent loop (interview → plan)
-│   ├── tools.py           # search_web, fetch_page, search_knowledge_base
-│   ├── exchange.py        # Live EUR→EGP rate (cached)
+│   ├── app.py             # FastAPI: SSE chat, health, rate, knowledge, static
+│   ├── agent.py           # Tool-calling agent loop (interview -> plan)
+│   ├── rag.py             # pgvector RAG orchestrator
+│   ├── tools.py           # search_knowledge_base
+│   ├── exchange.py        # Live EUR->EGP rate
 │   └── config.py          # Settings from env / .env
+├── vectorstore/
+│   ├── __init__.py
+│   ├── db.py              # PostgreSQL connection
+│   ├── embeddings.py      # Local sentence-transformers model
+│   └── store.py           # pgvector insert, query, country check
+├── scraper/
+│   ├── __init__.py
+│   ├── base.py            # HTTP requests, DuckDuckGo search
+│   ├── schengen.py        # Schengen-specific scraper (26 countries)
+│   ├── dynamic.py         # Generic scraper for any country
+│   └── chunker.py         # Text chunking utility
+├── db/
+│   └── init.sql           # PostgreSQL schema (visa_chunks table + indexes)
 ├── data/
 │   └── visa_programs.json # Curated Egypt-specific visa knowledge base
 ├── frontend/
 │   ├── index.html         # Chat UI + plan panel
-│   ├── style.css          # Styles, RTL + print/PDF styles
+│   ├── style.css          # Styles, RTL + print/PDF
 │   └── app.js             # SSE streaming, i18n, checklist, history, EGP
 ├── .env.example           # Copy to .env and fill in your key
 └── LICENSE
@@ -121,98 +152,135 @@ veezaAI/
 
 ---
 
-## 🚀 Quickstart (local)
+## Quickstart (local)
 
-Requires **Python 3.12+** and a free **Groq API key** (<https://console.groq.com>).
+Requires **Python 3.12+**, **PostgreSQL 16+** (with pgvector extension), and a free **Groq API key**.
+
+### 1. Install dependencies
 
 ```bash
-# 1. Install
 pip install -r requirements.txt
+```
 
-# 2. Configure your API key
-cp .env.example .env      # Windows: Copy-Item .env.example .env
-# then set LLM_API_KEY=<your key> in .env
+### 2. Set up PostgreSQL + pgvector
 
-# 3. Run
+Make sure PostgreSQL is running, then create the database:
+
+```bash
+# Connect as superuser
+psql -U postgres
+
+# Create user and database
+CREATE USER veeza WITH PASSWORD '1234' CREATEDB;
+CREATE DATABASE veeza OWNER veeza;
+\q
+
+# Enable pgvector and create schema
+psql -U veeza -d veeza -c "CREATE EXTENSION IF NOT EXISTS vector;"
+psql -U veeza -d veeza -f db/init.sql
+```
+
+### 3. Configure
+
+```bash
+cp .env.example .env
+# Set LLM_API_KEY=<your Groq key> in .env
+# DATABASE_URL defaults to postgresql://veeza:1234@localhost:5432/veeza
+```
+
+### 4. Run
+
+```bash
 python run.py
 ```
 
-Open **<http://127.0.0.1:8000>** and start chatting.
-
-### With Docker
-
-```bash
-docker build -t veeza-ai .
-docker run -p 7860:7860 -e LLM_API_KEY=<your key> veeza-ai
-```
-
-Open **<http://localhost:7860>**.
+Open **http://127.0.0.1:8000** and start chatting.
 
 ---
 
-## ⚙️ Configuration
+## Docker
+
+```bash
+# Full stack (PostgreSQL + app)
+docker compose up --build
+```
+
+Open **http://localhost:7860**.
+
+The first time a user picks a country, the scraper runs and caches results in pgvector. Subsequent requests for that country are instant.
+
+---
+
+## Configuration
 
 | Variable | Default | Notes |
 |---|---|---|
 | `LLM_API_KEY` | — | **Required.** Groq / OpenRouter / any OpenAI-compatible key |
 | `LLM_BASE_URL` | `https://api.groq.com/openai/v1` | Override for OpenRouter etc. |
 | `LLM_MODEL` | `qwen/qwen3.6-27b` | Must support function calling |
-| `TAVILY_API_KEY` | empty | Optional; enables Tavily search |
+| `DATABASE_URL` | `postgresql://veeza:1234@localhost:5432/veeza` | PostgreSQL connection string |
+| `TAVILY_API_KEY` | empty | Optional; not currently used with pgvector flow |
 
-> **Model tips:** `qwen/qwen3.6-27b` (default) is fast with good Arabic and reliable tool calling. `openai/gpt-oss-120b` is strong but its 8K TPM cap is easier to hit with research-heavy turns. Avoid `llama-3.3-70b-versatile` — its tool-call parsing is flaky and it drains the free daily token cap fast. The agent batches the whole interview into one checklist and keeps research lean so the whole flow fits comfortably under the Groq free tier (30 RPM / 8K TPM / 200K TPD); if you hit the daily cap, wait for the reset or use any OpenAI-compatible provider.
+**Model tips:** `qwen/qwen3.6-27b` (default) is fast with good Arabic and reliable tool calling. The agent batches the whole interview into one checklist and keeps research lean — comfortably under the Groq free tier (30 RPM / 8K TPM / 200K TPD).
 
 ---
 
-## 🔌 API
+## API
 
 | Endpoint | Description |
 |---|---|
-| `POST /api/chat/stream` | SSE stream. Body: `{session_id?, message}` → events `{type: "status"\|"question"\|"message"\|"plan"}` |
-| `POST /api/chat` | Non-streaming version. Returns `{session_id, reply, kind, plan}` |
-| `POST /api/reset` | `{session_id}` → clears a conversation |
-| `GET /api/rate` | `{eur_to_egp}` — live EUR→EGP rate |
+| `POST /api/chat/stream` | SSE stream. Body: `{session_id?, message}` -> events `{type: "status"|"question"|"message"|"plan"}` |
+| `POST /api/chat` | Non-streaming. Returns `{session_id, reply, kind, plan}` |
+| `POST /api/reset` | `{session_id}` -> clears a conversation |
+| `GET /api/rate` | `{eur_to_egp}` — live EUR->EGP rate |
 | `GET /api/knowledge` | The curated knowledge base |
-| `GET /api/health` | Health check |
+| `GET /api/health` | `{status, model, base_url}` |
 
-`kind: "question"` means the agent is waiting for your answer; keep replying with the same `session_id`. `kind: "plan"` includes the full structured plan object.
+`kind: "question"` means the agent is waiting for your answer. `kind: "plan"` includes the full structured plan.
 
 ---
 
-## ☁️ Deployment
-
-### GitHub
+## Deploy to GitHub
 
 ```bash
-git init
+# Stage everything (excluding .env)
 git add .
-git commit -m "Initial commit: AI visa assistant for Egyptians"
+
+# Commit
+git commit -m "feat: pgvector RAG, Schengen scrapers, on-demand country scraping"
+
+# Set main branch
 git branch -M main
+
+# Add remote (replace <your-username> and <your-repo>)
 git remote add origin https://github.com/<your-username>/<your-repo>.git
+
+# Push
 git push -u origin main
 ```
 
-> 🔒 The `.gitignore` excludes `.env` — your API key never gets committed.
+## Deploy to Hugging Face Spaces
 
-### Hugging Face Spaces
-
-1. Create a **Docker** SDK Space at <https://huggingface.co/new-space> (name it e.g. `veeza-ai`).
-2. Push the same repo to the Space:
+1. Create a **Docker** SDK Space at https://huggingface.co/new-space (name it e.g. `veeza-ai`).
+2. Add the remote and push:
 
 ```bash
 git remote add space https://huggingface.co/spaces/<your-username>/veeza-ai
 git push space main
 ```
 
-3. In **Space Settings → Variables and secrets**, add the secret:
+3. In **Space Settings -> Variables and secrets**, add:
    - `LLM_API_KEY` = your Groq key
+   - `DATABASE_URL` = your PostgreSQL connection string (or add a PostgreSQL add-on)
 
-The `Dockerfile` already listens on port **7860** (HF's default). Your Space will be live at
-`https://huggingface.co/spaces/<your-username>/veeza-ai`.
+The `Dockerfile` listens on port **7860** (HF's default).
+
+> The `.gitignore` excludes `.env` — your API key never gets committed.
 
 ---
 
-## 📜 License & disclaimer
+## License
 
 [MIT](LICENSE).
 
-This tool aggregates **public information** for research and planning only. It is **not legal advice** and does **not** guarantee visa approval. Fees, documents and procedures change frequently — always confirm on the official embassy / visa-centre website before paying or submitting anything.
+This tool aggregates public information for research and planning only. It is **not legal advice** and does **not** guarantee visa approval. Fees, documents and procedures change — always confirm on the official embassy / visa-centre website before paying or submitting anything.

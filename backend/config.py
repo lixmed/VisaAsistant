@@ -11,6 +11,7 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "").strip()
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1").strip()
 LLM_MODEL = os.getenv("LLM_MODEL", "openai/gpt-oss-120b").strip()
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY", "").strip()
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://veeza:1234@localhost:5432/veeza").strip()
 MAX_AGENT_STEPS = 12
 MAX_TOOLS_PER_TURN = 3
 REQUEST_TIMEOUT = 15
