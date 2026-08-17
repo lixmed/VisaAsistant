@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .agent import Agent
+from .config import LLM_BASE_URL, LLM_MODEL
 from .exchange import get_egp_rate
 from .tools import load_knowledge_base
 
@@ -43,7 +44,7 @@ class ChatResponse(BaseModel):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "model": LLM_MODEL, "base_url": LLM_BASE_URL}
 
 
 @app.get("/api/rate")
@@ -141,4 +142,4 @@ app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("backend.app:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("backend.app:app", host="127.0.0.1", port=8000, reload=False)

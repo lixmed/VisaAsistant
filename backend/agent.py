@@ -21,29 +21,30 @@ from .tools import search_web, fetch_page, search_knowledge_base
 SYSTEM_PROMPT = """You are "Veeza", a friendly visa assistant that helps Egyptian citizens apply for European (Schengen and EU national) visas.
 
 YOUR JOB
-1. INTERVIEW: Ask the user the specific questions you need, one or two at a time, in a natural conversational way. The user will answer in plain language.
-2. RESEARCH: Use your tools to look up the current requirements, fees and procedures for the user's specific case on official sources (embassy sites, VFS Global, TLScontact, EU Commission). Prefer official domains. Cross-check the curated knowledge base with live results.
-3. PLAN: When you have enough information, call generate_plan with a complete, structured, personalised plan.INFORMATION YOU MUST COLLECT BEFORE GENERATING A PLAN (collect what is relevant - skip what does not apply):
-- Purpose of travel (tourism / business / family visit / study / work / medical / transit)
-- Destination country in Europe and, if Schengen, whether it is the main destination
-- Expected travel dates and duration of stay
-- Who is travelling (solo, partner, family - include ages of children)
-- Employment status (employee / self-employed / business owner / student / retired / unemployed)
-- Monthly income and how much money is available for the trip
-- Previous Schengen/EU/US/UK visas and travel history (especially a prior Schengen visa)
-- Ties to Egypt (family, job, property) - this matters a lot for approvals
-- Passport validity (must be 3+ months beyond return, issued < 10 years ago)
-- Where they plan to stay (hotel / friends / family)
-- Accommodation and who will finance the trip
+1. INTERVIEW: Collect ALL the information you need from the user in as FEW messages as possible (ideally one). Ask the user to answer a short numbered checklist covering everything, in a single reply. This keeps API calls small and fast.
+2. RESEARCH: Use your tools to look up the current requirements, fees and procedures for the user's specific case on official sources (embassy sites, VFS Global, TLScontact, EU Commission). Prefer official domains. Cross-check the curated knowledge base with live results. Keep research focused: at most 2-3 searches and 1-2 page reads in total.
+3. PLAN: When you have enough information, call generate_plan with a complete, structured, personalised plan.
+
+INFORMATION YOU MUST COLLECT BEFORE GENERATING A PLAN (collect what is relevant - skip what does not apply). Ask for all of it up front in ONE numbered checklist:
+1. Destination country in Europe and, if Schengen, whether it is the main destination
+2. Purpose of travel (tourism / business / family visit / study / work / medical / transit)
+3. Expected travel dates and duration of stay
+4. Who is travelling (solo, partner, family - include ages of children)
+5. Employment status (employee / self-employed / business owner / student / retired / unemployed) and monthly income
+6. How much money is available for the trip
+7. Previous Schengen/EU/US/UK visas and travel history (especially a prior Schengen visa)
+8. Ties to Egypt (family, job, property) - this matters a lot for approvals
+9. Passport validity (must be 3+ months beyond return, issued < 10 years ago)
+10. Where they plan to stay (hotel / friends / family) and who will finance the trip
 
 BEHAVIOUR RULES
 - Keep responses concise and clear. Answer in the language the user writes in (English or Arabic). Be encouraging but honest.
 - Do NOT make up fees or deadlines. If you are not sure, search the web for the current official figure and quote the source URL.
 - Do NOT give false hope or guarantee visa approval. You may note that approval is always at the embassy's discretion.
 - If the user asks about something unrelated to visas, politely steer back.
-- Interview step by step. Never dump every question at once. Ask at most 1-2 questions per turn.
-- QUESTION STYLE: ask SHORT, simple single questions. Avoid parentheses, comma-lists and heavy punctuation inside a question (e.g. write "What do you do for a living?" instead of "What is your employment status (employee, self-employed, business owner, student, retired, unemployed)?").
-- Once you have enough info (roughly 6-10 answers), tell the user you are preparing the plan, do any final web checks, then call generate_plan.
+- TOKEN-EFFICIENT INTERVIEW: In your very first ask_user call, present the numbered checklist above and ask the user to reply to all of it in ONE message. After their batch answer, ask at most ONE short follow-up only if something essential is still missing. Never re-ask what they already told you.
+- QUESTION STYLE: short, simple wording. Avoid parentheses, comma-lists and heavy punctuation inside questions.
+- Once you have enough info (from the batch answer + at most one follow-up), tell the user you are preparing the plan, do minimal final web checks, then call generate_plan.
 
 HONEST ASSESSMENT
 - In generate_plan, always include an honest 'chances' rating (e.g. "Good", "Fair", "Challenging") for this specific applicant and a 'weak_points' list naming concrete weaknesses that could hurt the application (e.g. short bank history, low income vs funds needed, first Schengen application, no strong ties). Then give practical ways to fix them in 'tips'.
@@ -106,11 +107,11 @@ TOOL_SCHEMAS = [
         "type": "function",
         "function": {
             "name": "ask_user",
-            "description": "Ask the user a question. Use this whenever you need a piece of information from the user. Ask only ONE question per call. The user's answer will be delivered back to you automatically.",
+            "description": "Ask the user for information. TOKEN-EFFICIENT: prefer to ask for everything you need in ONE call, as a short numbered checklist the user can answer in a single message. If you only need one small clarification, ask that alone.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "question": {"type": "string", "description": "The single question to ask the user"}
+                    "question": {"type": "string", "description": "The question or numbered checklist to ask the user"}
                 },
                 "required": ["question"]
             }
@@ -209,6 +210,29 @@ TOOL_MAP = {
     "search_knowledge_base": search_knowledge_base,
 }
 
+# After the research budget is spent, only these two tools are offered to the
+# model so it must either ask the user or generate the plan — no more searching.
+_PLAN_TOOLS = [t for t in TOOL_SCHEMAS if t["function"]["name"] in ("ask_user", "generate_plan")]
+
+
+def _looks_like_question(text: str) -> bool:
+    """Heuristic: is this assistant text an interview question/checklist?
+
+    Used when a model writes its question as plain text instead of calling
+    the ask_user tool (some models do this intermittently).
+    """
+    t = text.strip().rstrip()
+    if t.endswith("?"):
+        return True
+    low = text.lower()
+    if re.search(r"please\s+(reply|answer|provide|tell|give|share)", low):
+        return True
+    if re.search(r"(tell|give|provide|share)\s+(me\s+)?(your|the)\s+\w+", low):
+        return True
+    if re.search(r"\n\s*\d+[.)]", text):  # numbered checklist
+        return True
+    return False
+
 
 class Agent:
     def __init__(self, session_id: str):
@@ -251,6 +275,7 @@ class Agent:
         }
 
         tools_used = 0
+        budget_hit = False
         for _ in range(MAX_AGENT_STEPS):
             last_err = None
             for attempt in range(4):  # retry transient API / malformed tool-call errors
@@ -258,14 +283,25 @@ class Agent:
                     resp = client.chat.completions.create(
                         model=LLM_MODEL,
                         messages=self.messages,
-                        tools=TOOL_SCHEMAS,
+                        tools=_PLAN_TOOLS if budget_hit else TOOL_SCHEMAS,
                         tool_choice="auto",
                         temperature=min(0.4 + attempt * 0.2, 1.0),
                     )
                     break
                 except Exception as e:
                     last_err = e
-                    time.sleep(0.5 * (attempt + 1))
+                    status = getattr(e, "status_code", None) or getattr(
+                        getattr(e, "response", None), "status_code", None
+                    )
+                    if status in (413, 429):
+                        # Free-tier rate limit: wait for the window to reset.
+                        # Single requests can also exceed the 8k TPM cap, so trim
+                        # history aggressively before the retry.
+                        if status == 413 and len(self.messages) > 6:
+                            self.messages = self.messages[:1] + self.messages[-6:]
+                        time.sleep(8 * (attempt + 1))
+                    else:
+                        time.sleep(0.5 * (attempt + 1))
             else:
                 yield {"type": "message", "reply": f"Sorry, I hit a connection problem: {last_err}"}
                 return
@@ -279,6 +315,14 @@ class Agent:
                     self.messages.append({"role": "user", "content": "Please continue and ask your next question."})
                     continue
                 self.messages.append({"role": "assistant", "content": content})
+                # Some models occasionally write their interview question/checklist as
+                # plain text instead of calling ask_user. Treat question-like text the
+                # same as a question event so the conversation pauses for the answer.
+                if _looks_like_question(content) and self.plan is None:
+                    self.pending_question = None
+                    self.pending_tool_call_id = None
+                    yield {"type": "question", "reply": content}
+                    return
                 yield {"type": "message", "reply": content}
                 return
 
@@ -323,19 +367,24 @@ class Agent:
                         result = f"[tool {name} failed: {e}]"
 
                 self.messages.append(
-                    {"role": "tool", "tool_call_id": tc.id, "content": str(result)[:4000]}
+                    {"role": "tool", "tool_call_id": tc.id, "content": str(result)[:1200]}
                 )
                 tools_used += 1
                 self._maybe_compact()
+                time.sleep(2)  # pace requests to stay under the free-tier TPM cap
 
-            # Research budget: after enough tool calls in one turn, steer the model back to the user.
-            if tools_used >= MAX_TOOLS_PER_TURN:
+            # Research budget: after enough tool calls in one turn, steer the model
+            # back to the user.  Only append the nudge once; on the next iteration
+            # the model will be offered only ask_user / generate_plan (see
+            # budget_hit flag above), so it must either ask or produce the plan.
+            if tools_used >= MAX_TOOLS_PER_TURN and not budget_hit:
                 self.messages.append(
                     {
                         "role": "user",
                         "content": "You have done enough research for this turn. Stop researching now and either ask the user your next interview question or, if you already have everything you need, call generate_plan.",
                     }
                 )
+                budget_hit = True
 
         yield {
             "type": "message",
@@ -347,7 +396,13 @@ class Agent:
         tool results once the conversation history gets large."""
         if sum(len(m.get("content", "")) for m in self.messages) <= budget:
             return
+        # Keep the system prompt, drop assistant/user chatter older than the
+        # last 20 messages, and shrink tool results to title lines only.
         self.messages = self.messages[:1] + self.messages[-20:]
+        for m in self.messages:
+            content = m.get("content") or ""
+            if m.get("role") == "tool" and len(content) > 300:
+                m["content"] = content[:300]
 
     def run(self, user_message: str) -> dict:
         """Non-streaming wrapper (returns the final dict like before)."""

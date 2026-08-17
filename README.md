@@ -87,7 +87,7 @@ The core is a **tool-calling agent loop** (`backend/agent.py`):
 | Layer | Tech |
 |---|---|
 | Backend | Python 3.12 · **FastAPI** · Uvicorn |
-| LLM | OpenAI-compatible SDK → **Groq free tier** (`openai/gpt-oss-120b`), any OpenAI-compatible endpoint works |
+| LLM | OpenAI-compatible SDK → **Groq free tier** (`qwen/qwen3.6-27b`), any OpenAI-compatible endpoint works |
 | Web search | **DuckDuckGo** (free, no key) or **Tavily** (optional) |
 | Web scraping | `requests` + `BeautifulSoup` |
 | Exchange rate | Frankfurter / open.er-api (free, ECB data) |
@@ -156,10 +156,10 @@ Open **<http://localhost:7860>**.
 |---|---|---|
 | `LLM_API_KEY` | — | **Required.** Groq / OpenRouter / any OpenAI-compatible key |
 | `LLM_BASE_URL` | `https://api.groq.com/openai/v1` | Override for OpenRouter etc. |
-| `LLM_MODEL` | `openai/gpt-oss-120b` | Must support function calling |
+| `LLM_MODEL` | `qwen/qwen3.6-27b` | Must support function calling |
 | `TAVILY_API_KEY` | empty | Optional; enables Tavily search |
 
-> **Model tips:** `openai/gpt-oss-120b` (default) is the most reliable free tool-calling model on Groq; `qwen/qwen3.6-27b` has excellent Arabic. Avoid `llama-3.3-70b-versatile` — its tool-call parsing is flaky and it drains the free daily token cap fast.
+> **Model tips:** `qwen/qwen3.6-27b` (default) is fast with good Arabic and reliable tool calling. `openai/gpt-oss-120b` is strong but its 8K TPM cap is easier to hit with research-heavy turns. Avoid `llama-3.3-70b-versatile` — its tool-call parsing is flaky and it drains the free daily token cap fast. The agent batches the whole interview into one checklist and keeps research lean so the whole flow fits comfortably under the Groq free tier (30 RPM / 8K TPM / 200K TPD); if you hit the daily cap, wait for the reset or use any OpenAI-compatible provider.
 
 ---
 

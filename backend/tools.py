@@ -26,7 +26,7 @@ def load_knowledge_base() -> dict:
         return {"error": f"Could not load knowledge base: {e}"}
 
 
-def _extract_text(html: str, max_chars: int = 5000) -> str:
+def _extract_text(html: str, max_chars: int = 2500) -> str:
     from bs4 import BeautifulSoup
 
     soup = BeautifulSoup(html, "html.parser")
@@ -89,7 +89,7 @@ def search_web(query: str) -> str:
 
     lines = []
     for i, r in enumerate(results, 1):
-        snippet = (r.get("snippet") or "")[:250]
+        snippet = (r.get("snippet") or "")[:180]
         lines.append(f"{i}. {r.get('title')}\n   URL: {r.get('url')}\n   {snippet}")
     return "\n\n".join(lines)
 
