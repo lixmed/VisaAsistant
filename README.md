@@ -80,6 +80,4 @@ git remote add origin https://github.com/lixmed/VisaAsistant.git
 git push -u origin main
 ```
 
-## License
 
-MIT. Not legal advice — always verify requirements on official embassy websites.
