@@ -1,5 +1,3 @@
-# Veeza AI
-
 An AI visa assistant that helps Egyptian citizens plan European visa applications. It interviews you, looks up current requirements, and gives you a complete action plan.
 
 Built with Python, FastAPI, PostgreSQL + pgvector, and free LLMs via Groq.
